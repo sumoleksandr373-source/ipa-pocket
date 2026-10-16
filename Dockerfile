@@ -1,4 +1,8 @@
-# IPA Pocket 0.3.5 — refresh and explicitly configure the system CA trust store for SideSign.
+# IPA Pocket 0.3.6 — use a local Anisette V3 server rather than public servers.
+# The sidecar binary comes from the upstream Docker image; no TLS verification is disabled.
+FROM dadoum/anisette-v3-server:latest AS anisette-v3
+
+# Configure a verified system CA trust store for normal HTTPS requests.
 # The Windows 7 PC is used only as a browser; signing runs in the cloud container.
 FROM swift:6.0.3-noble
 
@@ -9,7 +13,7 @@ ENV CPATH=/usr/local/include:/usr/local/include/unicorn
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg git wget tar unzip \
     build-essential binutils gnupg2 libc6-dev libcurl4-openssl-dev \
-    libedit2 libsqlite3-0 libstdc++-13-dev libxml2-dev libz3-dev \
+    libedit2 libsqlite3-0 libstdc++-13-dev libxml2-dev libz3-dev libplist-2.0-4 \
     libdeflate-dev pkg-config tzdata zlib1g-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -55,11 +59,18 @@ RUN git clone --depth 1 https://github.com/SideStore/SideSign.git /opt/SideSign 
     && install -m 0755 ./.build/release/sidesign /usr/local/bin/sidesign \
     && rm -rf /opt/SideSign
 
+# The upstream Anisette V3 service listens on 6969 internally. It is only accessed
+# over loopback by SideSign; it is not exposed publicly by Render.
+COPY --from=anisette-v3 /opt/anisette-v3-server /usr/local/bin/anisette-v3-server
+RUN mkdir -p /home/Alcoholic/.config/anisette-v3/lib /home/Alcoholic/.config/anisette-v3/provisioning /opt/anisette-v3/provisioning \
+    && chmod -R 700 /home/Alcoholic/.config/anisette-v3
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 COPY server.js ./
+COPY start.sh ./start.sh
 COPY public ./public
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["sh", "/app/start.sh"]
