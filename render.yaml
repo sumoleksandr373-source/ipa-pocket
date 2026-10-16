@@ -12,3 +12,5 @@ services:
         value: "2"
       - key: MAX_FILE_SIZE
         value: "2147483648"
+      - key: DATA_DIR
+        value: /var/data
