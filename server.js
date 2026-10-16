@@ -23,6 +23,7 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const SIGNING_CACHE_DIR = path.join(DATA_DIR, 'signing-cache');
 const SIDESIGN_BIN = process.env.SIDESIGN_BIN || '/usr/local/bin/sidesign';
+const SIDESIGN_ANISETTE_SOURCE = (process.env.SIDESIGN_ANISETTE_SOURCE || 'https://servers.sidestore.io/servers.json').trim();
 const signJobs = new Map();
 let signingBusy = false;
 const COOKIE_NAME = 'ipa_pocket_session';
@@ -178,7 +179,7 @@ async function performSigning(job, item, credentials) {
   }
 
   // Password is passed only to the short-lived child process and is never added to job metadata/logs.
-  const login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
+  const login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password, '--failover', '--source', SIDESIGN_ANISETTE_SOURCE], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
   credentials.password = '';
   if (login.code !== 0) {
     const detail = login.output.trim().slice(-1800) || 'Неизвестная ошибка входа.';

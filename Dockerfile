@@ -1,10 +1,11 @@
-# IPA Pocket 0.3.0 — SideSign build and web service.
+# IPA Pocket 0.3.4 — Anisette login fix with UDID-aware SideSign build.
 # The Windows 7 PC is used only as a browser; signing runs in the cloud container.
 FROM swift:6.0.3-noble
 
 ENV DEBIAN_FRONTEND=noninteractive
-# Make static libraries installed under /usr/local/lib discoverable by the linker.
+# Make the Unicorn headers and library visible to SwiftPM/clang link steps.
 ENV LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu:/usr/lib
+ENV CPATH=/usr/local/include:/usr/local/include/unicorn
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg git wget tar unzip \
     build-essential binutils gnupg2 libc6-dev libcurl4-openssl-dev \
@@ -28,8 +29,13 @@ RUN mkdir -p /tmp/unicorn-dist \
     && cp -a "$(dirname "$UHEADER")"/. /usr/local/include/unicorn/ \
     && cp "$ULIB" /usr/local/lib/libunicorn.a \
     && cp "$ULIB" /usr/lib/x86_64-linux-gnu/libunicorn.a \
+    && cp "$ULIB" /usr/lib/libunicorn.a \
+    && ranlib /usr/local/lib/libunicorn.a \
     && ranlib /usr/lib/x86_64-linux-gnu/libunicorn.a \
+    && ranlib /usr/lib/libunicorn.a \
     && test -s /usr/lib/x86_64-linux-gnu/libunicorn.a \
+    && nm -g --defined-only /usr/lib/x86_64-linux-gnu/libunicorn.a | grep -Eq "[[:space:]]uc_open$" \
+    && nm -g --defined-only /usr/lib/x86_64-linux-gnu/libunicorn.a | grep -Eq "[[:space:]]uc_emu_start$" \
     && ldconfig \
     && rm -rf /tmp/unicorn-dist /tmp/unicorn.tar.gz
 
@@ -48,4 +54,3 @@ COPY public ./public
 ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["npm", "start"]
-
