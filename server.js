@@ -217,14 +217,12 @@ async function performSigning(job, item, credentials) {
   }
 
   const profilePath = path.join(job.workDir, 'ipa-pocket.mobileprovision');
-  const profileAttempts = [];
-  for (const type of ['IOS_APP_DEVELOPMENT', 'iOSAppDevelopment', 'development']) {
-    profileAttempts.push(['dev', 'profiles', 'create', '--bundle-id', item.metadata.bundleId, '--type', type, '--xcode', '--output', profilePath]);
-    profileAttempts.push(['dev', 'profiles', 'create', '--bundle-id', item.metadata.bundleId, '--type', type, '--manual', '--output', profilePath]);
-    profileAttempts.push(['dev', 'profiles', 'create', '--bundle-id', item.metadata.bundleId, '--type', type, '--xcode']);
-    profileAttempts.push(['dev', 'profiles', 'create', '--bundle-id', item.metadata.bundleId, '--type', type, '--manual']);
-  }
-  const profResult = await runSideSignVariants(job, profileAttempts, profilePath);
+  // SideSign's documented dev command is `profiles download --bundle-id ... --output ...`.
+  // It downloads/generates the profile for the registered App ID and current team.
+  const profResult = await runSideSignVariants(job, [
+    ['dev', 'profiles', 'download', '--bundle-id', item.metadata.bundleId, '--output', profilePath],
+    ['dev', 'profiles', 'fetch', '--bundle-id', item.metadata.bundleId, '--output', profilePath]
+  ], profilePath);
   let actualProfile = (await fsp.stat(profilePath).then(s => s.isFile() && s.size > 100, () => false)) ? profilePath : await findProvisioningFile(job.workDir);
   if (!actualProfile) {
     throw new Error(`Не удалось создать профиль для ${item.metadata.bundleId}. Это может быть ограничение бесплатной Personal Team или несовместимый тип профиля.\n${profResult.output.trim().slice(-1800)}`);
@@ -267,10 +265,16 @@ async function startSigningJob(item, requestData) {
   const id = crypto.randomUUID();
   const appleId = safeString(requestData.appleId, 254);
   const password = String(requestData.password || '');
-  const udid = safeString(requestData.udid, 64).toUpperCase();
+  let udid = safeString(requestData.udid, 64).trim().toUpperCase().replace(/[–—−]/g, '-');
+  // Newer iPhones use an 8-hex + hyphen + 16-hex UDID; older devices use 40 hex characters.
+  // Some UDID pages omit the hyphen, so accept 24 hex characters and normalize them.
+  const compactUdid = udid.replace(/-/g, '');
+  if (/^[A-F0-9]{24}$/.test(compactUdid) && !udid.includes('-')) {
+    udid = `${compactUdid.slice(0, 8)}-${compactUdid.slice(8)}`;
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(appleId)) throw new Error('Введи корректный Apple ID (электронную почту).');
   if (!password || password.length > 512) throw new Error('Введи пароль Apple ID.');
-  if (!/^[A-F0-9]{40}$/.test(udid)) throw new Error('UDID должен содержать 40 шестнадцатеричных символов. Его можно посмотреть в iTunes на Windows: подключи iPhone, нажми поле «Серийный номер», пока не появится UDID.');
+  if (!/^(?:[A-F0-9]{40}|[A-F0-9]{8}-[A-F0-9]{16})$/.test(udid)) throw new Error('Неподдерживаемый формат UDID. Принимаются старый формат из 40 шестнадцатеричных символов и новый формат XXXXXXXX-XXXXXXXXXXXXXXXX (8 символов, дефис, 16 символов). Вставь полный UDID из надёжного источника — не IMEI и не серийный номер.');
   if (signingBusy) throw new Error('Сервер уже выполняет подпись. Дождись окончания текущей операции.');
   const job = { id, token: item.token, status: 'queued', stage: 'Подготовка', logs: '', prompt: '', child: null, createdAt: Date.now(), result: null, error: '', redactions: [appleId, password], signingHome: '', workDir: '' };
   signJobs.set(id, job);
