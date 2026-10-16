@@ -3,6 +3,8 @@
 FROM swift:6.0.3-noble
 
 ENV DEBIAN_FRONTEND=noninteractive
+# Make static libraries installed under /usr/local/lib discoverable by the linker.
+ENV LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu:/usr/lib
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg git wget tar unzip \
     build-essential binutils gnupg2 libc6-dev libcurl4-openssl-dev \
@@ -25,6 +27,9 @@ RUN mkdir -p /tmp/unicorn-dist \
     && mkdir -p /usr/local/include/unicorn /usr/local/lib \
     && cp -a "$(dirname "$UHEADER")"/. /usr/local/include/unicorn/ \
     && cp "$ULIB" /usr/local/lib/libunicorn.a \
+    && cp "$ULIB" /usr/lib/x86_64-linux-gnu/libunicorn.a \
+    && ranlib /usr/lib/x86_64-linux-gnu/libunicorn.a \
+    && test -s /usr/lib/x86_64-linux-gnu/libunicorn.a \
     && ldconfig \
     && rm -rf /tmp/unicorn-dist /tmp/unicorn.tar.gz
 
@@ -43,3 +48,4 @@ COPY public ./public
 ENV NODE_ENV=production
 EXPOSE 3000
 CMD ["npm", "start"]
+
