@@ -17,7 +17,7 @@
         <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3.5h6.7L19 7.8v12.7H5V3.5h3Z"/><path d="M14.5 3.8v4.7h4.2M8 13h8M8 16.5h5"/><path d="m9.2 9.7 1.6 1.6 3.5-3.5"/></svg></span>
         <span class="brand-copy"><strong>IPA Pocket</strong><small>Твой IPA → iPhone</small></span>
       </a>
-      <div class="top-actions"><span class="version-pill">WEB · 0.3.2</span><button id="logoutBtn" class="button button-ghost small hidden" type="button">Выйти</button></div>
+      <div class="top-actions"><span class="version-pill">WEB · 0.3.3</span><button id="logoutBtn" class="button button-ghost small hidden" type="button">Выйти</button></div>
     </header>
 
     <main>
@@ -74,7 +74,7 @@
               <label for="applePassword">Пароль Apple ID</label>
               <input id="applePassword" type="password" autocomplete="current-password" maxlength="512" placeholder="Введи пароль" required>
               <label for="deviceUdid">UDID твоего iPhone (для профиля устройства)</label>
-              <input id="deviceUdid" type="text" autocapitalize="characters" spellcheck="false" maxlength="40" pattern="(?:[A-Fa-f0-9]{40}|[A-Fa-f0-9]{8}-[A-Fa-f0-9]{16})" placeholder="UDID из iTunes" required>
+              <input id="deviceUdid" type="text" autocapitalize="characters" spellcheck="false" maxlength="40" pattern="(?:[A-Fa-f0-9]{40}|[A-Fa-f0-9]{8}-[A-Fa-f0-9]{16}|[A-Fa-f0-9]{24})" placeholder="UDID из источника (старый или новый формат)" required>
               <p class="field-help">Как найти UDID на Windows: подключи iPhone к iTunes, открой страницу устройства и нажимай на поле «Серийный номер», пока не появится UDID. Скопируй именно UDID — не IMEI и не серийный номер. UDID сам по себе не подписывает IPA: он регистрируется в разрешённом аккаунте разработчика и добавляется в provisioning profile. Для реальной подписи дополнительно нужны действительный сертификат и профиль; Apple может отказать в регистрации или создании профиля.</p>
               <label class="consent-row"><input id="credentialConsent" type="checkbox" required><span>Я понимаю, что Apple ID и код подтверждения обрабатываются моим сервером IPA Pocket в облаке Render; это неофициальный механизм, и вход может быть отклонён Apple.</span></label>
               <button id="signBtn" class="button button-primary full" type="submit"><span>Начать подпись IPA</span><svg viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5"/></svg></button>
@@ -96,10 +96,10 @@
       <section class="how-panel">
         <div class="section-title"><div><span class="step-label">ВАЖНО ЗНАТЬ</span><h2>Что умеет установка через сайт</h2></div></div>
         <div class="how-grid"><article class="how-item"><span class="how-number">01</span><h3>Читает IPA</h3><p>Находит основной .app, читает Bundle ID, версию и признаки подписи из архива.</p></article><article class="how-item"><span class="how-number">02</span><h3>Пытается подписать</h3><p>Через SideSign получает материалы разработки и переподписывает IPA для указанного устройства.</p></article><article class="how-item"><span class="how-number">03</span><h3>Подготовка установки</h3><p>После успешной подписи сайт создаёт временную HTTPS-ссылку. Установка всё равно зависит от проверки iOS.</p></article></div>
-        <div class="hard-limit"><span class="hard-limit-icon">!</span><p><strong>Это не обход подписи iOS.</strong> IPA Pocket 0.3.2 экспериментально вызывает SideSign для Apple ID-входа, регистрации устройства, получения сертификата/профиля и переподписания. Это может не сработать для каждого IPA: бесплатная Personal Team имеет ограничения, а приложения с особыми entitlements могут не запускаться.</p></div>
+        <div class="hard-limit"><span class="hard-limit-icon">!</span><p><strong>Это не обход подписи iOS.</strong> IPA Pocket 0.3.3 экспериментально вызывает SideSign для Apple ID-входа, регистрации устройства, получения сертификата/профиля и переподписания. Это может не сработать для каждого IPA: бесплатная Personal Team имеет ограничения, а приложения с особыми entitlements могут не запускаться.</p></div>
       </section>
     </main>
-    <footer><span>IPA Pocket <span class="footer-dot">·</span> 0.3.2</span><span>Твой файл. Временная ссылка. Проверяй перед вводом учётных данных.</span></footer>
+    <footer><span>IPA Pocket <span class="footer-dot">·</span> 0.3.3</span><span>Твой файл. Временная ссылка. Проверяй перед вводом учётных данных.</span></footer>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>
