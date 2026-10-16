@@ -1,0 +1,21 @@
+{
+  "name": "ipa-pocket-ota",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A private web portal to inspect uploaded IPA packages and prepare iOS OTA installation links for already-signed apps.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "engines": { "node": ">=20.19" },
+  "dependencies": {
+    "bplist-parser": "^0.5.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2",
+    "plist": "^3.1.0",
+    "unzipper": "^0.12.3"
+  }
+}

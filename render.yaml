@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: ipa-pocket-ota
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ACCESS_KEY
+        sync: false
+      - key: INSTALL_LINK_TTL_HOURS
+        value: "2"
+      - key: MAX_FILE_SIZE
+        value: "2147483648"
