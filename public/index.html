@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d13">
+  <meta name="description" content="IPA Pocket — анализ IPA и подготовка ссылки установки на iPhone.">
+  <title>IPA Pocket — установка IPA</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="IPA Pocket — главная">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3.5h6.7L19 7.8v12.7H5V3.5h3Z"/><path d="M14.5 3.8v4.7h4.2M8 13h8M8 16.5h5"/><path d="m9.2 9.7 1.6 1.6 3.5-3.5"/></svg></span>
+        <span class="brand-copy"><strong>IPA Pocket</strong><small>Твой IPA → iPhone</small></span>
+      </a>
+      <div class="top-actions"><span class="version-pill">WEB · 0.2.0</span><button id="logoutBtn" class="button button-ghost small hidden" type="button">Выйти</button></div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow"><span class="eyebrow-dot"></span> ПОРТАЛ УСТАНОВКИ IPA</div>
+        <h1>Твоё приложение.<br><span>На твоём iPhone.</span></h1>
+        <p class="hero-text">Загрузи IPA, проверь его содержимое и получи ссылку установки для Safari. Компьютер на Windows 7 может быть только браузером — обработка выполняется на сервере.</p>
+        <div class="hero-features"><span><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8"/></svg> Анализ IPA</span><span><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8"/></svg> HTTPS-ссылка</span><span><svg viewBox="0 0 20 20"><path d="m4 10 4 4 8-8"/></svg> Без Mac</span></div>
+      </section>
+
+      <section id="loginPanel" class="panel login-panel">
+        <div class="panel-icon"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></div>
+        <div class="panel-heading"><h2>Вход в IPA Pocket</h2><p>Введи ключ доступа, заданный при публикации сайта.</p></div>
+        <form id="loginForm" class="login-form">
+          <label for="accessKey">Ключ доступа</label>
+          <div class="input-wrap"><input id="accessKey" name="accessKey" type="password" autocomplete="current-password" minlength="16" placeholder="Твой секретный ключ" required><button id="toggleKey" class="input-action" type="button" aria-label="Показать ключ">Показать</button></div>
+          <button class="button button-primary full" type="submit"><span>Открыть панель</span><svg viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5"/></svg></button>
+          <p id="loginError" class="form-error hidden" role="alert"></p>
+        </form>
+        <p class="privacy-note"><svg viewBox="0 0 20 20"><path d="M10 2.5 16 5v4.4c0 4-2.5 6.6-6 8.1-3.5-1.5-6-4.1-6-8.1V5l6-2.5Z"/><path d="m7.5 9.8 1.7 1.7 3.5-3.5"/></svg> Не вводи пароль Apple ID здесь. Эта версия не запрашивает Apple ID.</p>
+      </section>
+
+      <section id="workspace" class="hidden">
+        <div class="status-strip"><span class="status-led"></span><span id="serverStatus">Сервер подключён</span><span class="status-separator">·</span><span id="linkTtl">Ссылки до 2 часов</span></div>
+        <div class="panel upload-panel">
+          <div class="section-title"><div><span class="step-label">ШАГ 01</span><h2>Загрузи свой IPA</h2><p>Выбери оригинальный файл приложения из «Файлов» или с компьютера.</p></div><span class="file-badge">.IPA</span></div>
+          <form id="uploadForm">
+            <input id="ipaFile" type="file" name="ipa" accept=".ipa,application/octet-stream" hidden>
+            <button id="dropZone" class="drop-zone" type="button" aria-label="Выбрать IPA-файл">
+              <span class="upload-icon"><svg viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4"/><path d="M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></svg></span>
+              <span class="drop-title" id="dropTitle">Нажми, чтобы выбрать IPA</span>
+              <span class="drop-subtitle" id="dropSubtitle">или перетащи файл сюда · только .ipa</span>
+              <span class="choose-label">Выбрать файл <svg viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5"/></svg></span>
+            </button>
+            <div id="selectedFile" class="selected-file hidden"><span class="file-type-icon">IPA</span><span class="selected-file-text"><strong id="selectedName"></strong><small id="selectedSize"></small></span><button id="clearFile" type="button" class="remove-file" aria-label="Убрать файл">×</button></div>
+            <p id="uploadError" class="form-error hidden" role="alert"></p>
+            <button id="inspectBtn" class="button button-primary full inspect-button" type="submit" disabled><span>Извлечь данные и подготовить установку</span><svg viewBox="0 0 20 20"><path d="M3 10h13m-5-5 5 5-5 5"/></svg></button>
+          </form>
+          <div class="upload-footnote"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 9v4m0-7h.01"/></svg> Файл временно хранится на сервере только для создания ссылки. После истечения ссылки он удаляется.</div>
+        </div>
+
+        <section id="resultPanel" class="panel result-panel hidden" aria-live="polite">
+          <div class="result-header"><div><span class="step-label">ШАГ 02</span><h2>Приложение найдено</h2><p>Мы прочитали Info.plist внутри IPA. Это ещё не подтверждение рабочей подписи.</p></div><span class="result-check"><svg viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></svg></span></div>
+          <div class="app-card"><div class="app-art"><svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="26" rx="4"/><path d="M12 11h8M12 16h8M12 21h5"/></svg></div><div class="app-card-copy"><h3 id="appTitle">Приложение</h3><p id="appBundle">com.example.app</p></div><span id="appVersion" class="app-version">v1.0</span></div>
+          <div class="metadata-grid"><div class="metadata-item"><span>Минимальная iOS</span><strong id="minIos">Не указана</strong></div><div class="metadata-item"><span>Размер IPA</span><strong id="ipaSize">—</strong></div><div class="metadata-item"><span>Профиль внутри IPA</span><strong id="profileStatus">Не проверен</strong></div><div class="metadata-item"><span>Файлы подписи</span><strong id="signatureStatus">Не проверены</strong></div></div>
+          <div id="warningBox" class="warning-box"><div class="warning-title"><svg viewBox="0 0 20 20"><path d="M10 2.5 18 17H2l8-14.5Z"/><path d="M10 7v4m0 2.5h.01"/></svg><strong>Перед установкой</strong></div><ul id="warningList"></ul></div>
+          <div id="installActions" class="install-actions hidden"><a id="installBtn" class="button button-install full" href="#"><svg viewBox="0 0 20 20"><path d="M10 2v10m-4-4 4 4 4-4"/><path d="M3 13v4h14v-4"/></svg><span>Установить на iPhone</span></a><button id="copyInstallBtn" class="button button-secondary full" type="button"><svg viewBox="0 0 20 20"><rect x="7" y="7" width="10" height="11" rx="2"/><path d="M13 7V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg> Скопировать ссылку установки</button><a id="downloadBtn" class="text-link" href="#" download>Скачать исходный IPA отдельно</a></div>
+          <div id="httpsOnlyNotice" class="notice-box hidden">Установка с сайта требует публичного HTTPS-адреса. На локальном адресе вроде <code>http://localhost:3000</code> iPhone не сможет использовать OTA-ссылку.</div>
+          <div class="expires-row"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 1.5"/></svg><span id="expiresText">Ссылка будет временной.</span><button id="newUploadBtn" class="text-button" type="button">Другой IPA</button></div>
+        </section>
+      </section>
+
+      <section class="how-panel">
+        <div class="section-title"><div><span class="step-label">ВАЖНО ЗНАТЬ</span><h2>Что умеет установка через сайт</h2></div></div>
+        <div class="how-grid"><article class="how-item"><span class="how-number">01</span><h3>Читает IPA</h3><p>Находит основной .app, читает Bundle ID, версию и признаки подписи из архива.</p></article><article class="how-item"><span class="how-number">02</span><h3>Готовит OTA-ссылку</h3><p>Создаёт манифест установки и временную HTTPS-ссылку для iOS.</p></article><article class="how-item"><span class="how-number">03</span><h3>iOS решает, можно ли установить</h3><p>IPA должен быть правильно подписан, а профиль и сертификат должны подходить твоему устройству.</p></article></div>
+        <div class="hard-limit"><span class="hard-limit-icon">!</span><p><strong>Это не обход подписи iOS.</strong> IPA Pocket 0.2.0 не подписывает IPA и не входит в Apple ID. UDID сам по себе тоже не заменяет подпись. Для неподписанного или несовместимо подписанного IPA кнопка установки не поможет — сначала нужно получить допустимую подпись.</p></div>
+      </section>
+    </main>
+    <footer><span>IPA Pocket <span class="footer-dot">·</span> 0.2.0</span><span>Твой файл. Временная ссылка. Никаких паролей Apple ID.</span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
