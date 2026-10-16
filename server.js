@@ -70,6 +70,11 @@ function runSideSign(job, args, options = {}) {
       cwd: job.workDir,
       env: {
         ...process.env,
+        // Explicitly use the refreshed OS CA bundle for SideSign/Anisette HTTPS.
+        // Keep TLS certificate verification enabled; never use an insecure bypass.
+        SSL_CERT_FILE: '/etc/ssl/certs/ca-certificates.crt',
+        SSL_CERT_DIR: '/etc/ssl/certs',
+        CURL_CA_BUNDLE: '/etc/ssl/certs/ca-certificates.crt',
         HOME: job.signingHome,
         XDG_CONFIG_HOME: path.join(job.signingHome, '.config'),
         XDG_DATA_HOME: path.join(job.signingHome, '.local', 'share'),

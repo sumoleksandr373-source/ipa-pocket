@@ -1,4 +1,4 @@
-# IPA Pocket 0.3.4 — Anisette login fix with UDID-aware SideSign build.
+# IPA Pocket 0.3.5 — refresh and explicitly configure the system CA trust store for SideSign.
 # The Windows 7 PC is used only as a browser; signing runs in the cloud container.
 FROM swift:6.0.3-noble
 
@@ -12,6 +12,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libedit2 libsqlite3-0 libstdc++-13-dev libxml2-dev libz3-dev \
     libdeflate-dev pkg-config tzdata zlib1g-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Refresh the OS CA bundle and point curl/OpenSSL-based clients at the same verified trust store.
+# Do not disable TLS verification: that would expose Apple sign-in traffic to interception.
+RUN update-ca-certificates --fresh \
+    && test -s /etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_DIR=/etc/ssl/certs \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 # Node.js 22 (web server runtime) alongside the Swift runtime required by SideSign.
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
