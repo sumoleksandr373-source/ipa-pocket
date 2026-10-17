@@ -14,5 +14,3 @@ services:
         value: "2147483648"
       - key: DATA_DIR
         value: /var/data
-      - key: SIDESIGN_ANISETTE_SOURCE
-        value: https://ani.sidestore.io,https://ani.sidestore.app,https://ani.sidestore.zip
