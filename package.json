@@ -1,8 +1,8 @@
 {
   "name": "ipa-pocket-ota",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
-  "description": "IPA inspection, temporary OTA hosting, and experimental Apple ID and UDID-based device provisioning through SideSign.",
+  "description": "IPA inspection, temporary OTA hosting, and experimental Apple ID and UDID-based device provisioning through SideSign with an explicit CA trust store.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

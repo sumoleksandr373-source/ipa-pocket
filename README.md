@@ -1,8 +1,10 @@
-# IPA Pocket 0.3.4 — исправление Anisette
+# IPA Pocket 0.3.5 — исправление Anisette
 
 IPA Pocket — собственный веб-сайт для анализа IPA и экспериментальной попытки переподписания под конкретный iPhone через Apple ID. ПК с Windows 7 32-bit используется только как браузер; SideSign и Node.js собираются/запускаются на облачном сервере.
 
-## Что нового в 0.3.4
+## Что нового в 0.3.5
+
+- Принудительное обновление системного хранилища CA-сертификатов и явное указание CA bundle для HTTPS-запросов SideSign/Anisette. Проверка SSL остаётся включённой.
 
 - Исправлен запуск входа Apple ID: SideSign получает `--failover --source https://servers.sidestore.io/servers.json`, как указано в примерах его CLI. Источник можно переопределить переменной Render `SIDESIGN_ANISETTE_SOURCE`.
 
@@ -24,7 +26,7 @@ IPA Pocket — собственный веб-сайт для анализа IPA 
 
 ## Обновление существующего GitHub/Render проекта
 
-Ты уже создал репозиторий `ipa-pocket` и Render Blueprint. Для обновления скачай `IPA-Pocket-0.3.4-Anisette-fix.zip`, распакуй и замени файлы в корне существующего репозитория:
+Ты уже создал репозиторий `ipa-pocket` и Render Blueprint. Для обновления скачай `IPA-Pocket-0.3.5-Anisette-fix.zip`, распакуй и замени файлы в корне существующего репозитория:
 
 - `Dockerfile`
 - `package.json`

@@ -23,7 +23,19 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const SIGNING_CACHE_DIR = path.join(DATA_DIR, 'signing-cache');
 const SIDESIGN_BIN = process.env.SIDESIGN_BIN || '/usr/local/bin/sidesign';
-const SIDESIGN_ANISETTE_SERVER = (process.env.SIDESIGN_ANISETTE_SERVER || 'http://127.0.0.1:6969').trim();
+// Default to a short list of SideStore's own officially-run anisette servers (valid, non-self-signed certs).
+// The full servers.json listing also includes personal/community-hosted servers; some of those present
+// self-signed or otherwise untrusted certs, which correctly fails TLS verification (never bypassed here)
+// and previously made every login fail as soon as --failover landed on one of them.
+const DEFAULT_ANISETTE_SOURCES = ['https://ani.sidestore.io', 'https://ani.sidestore.app', 'https://ani.sidestore.zip'];
+const SIDESIGN_ANISETTE_SOURCES = (process.env.SIDESIGN_ANISETTE_SOURCE || '')
+  .split(',')
+  .map(value => value.trim())
+  .filter(Boolean);
+if (SIDESIGN_ANISETTE_SOURCES.length === 0) SIDESIGN_ANISETTE_SOURCES.push(...DEFAULT_ANISETTE_SOURCES);
+function isConnectivityIssue(output) {
+  return /(self.?signed certificate|certificate (problem|verif|chain)|ssl|tls|handshake|econnrefused|econnreset|enotfound|eai_again|etimedout|timed? ?out|connection reset|could not connect|network is unreachable|502 |503 |504 |bad gateway|gateway timeout|service unavailable)/i.test(output);
+}
 const signJobs = new Map();
 let signingBusy = false;
 const COOKIE_NAME = 'ipa_pocket_session';
@@ -184,7 +196,22 @@ async function performSigning(job, item, credentials) {
   }
 
   // Password is passed only to the short-lived child process and is never added to job metadata/logs.
-  const login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password, '--server', SIDESIGN_ANISETTE_SERVER], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
+  // Try each configured anisette source in turn, but only move to the next one when the failure looks
+  // like a connectivity/certificate problem with that particular server - never retry across servers on
+  // a wrong password or a pending 2FA prompt, since that wouldn't help and just burns Apple ID attempts.
+  let login = { code: -1, output: '' };
+  for (let i = 0; i < SIDESIGN_ANISETTE_SOURCES.length; i++) {
+    const source = SIDESIGN_ANISETTE_SOURCES[i];
+    appendJobLog(job, `\n[IPA Pocket] Anisette-сервер: ${source}\n`);
+    login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password, '--failover', '--source', source], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
+    if (login.code === 0) {
+      appendJobLog(job, `\n[IPA Pocket] Вход через ${source} прошёл успешно.\n`);
+      break;
+    }
+    const isLast = i === SIDESIGN_ANISETTE_SOURCES.length - 1;
+    if (!isConnectivityIssue(login.output) || isLast) break;
+    appendJobLog(job, `\n[IPA Pocket] ${source} недоступен или отдал недоверенный сертификат, пробуем следующий сервер.\n`);
+  }
   credentials.password = '';
   if (login.code !== 0) {
     const detail = login.output.trim().slice(-1800) || 'Неизвестная ошибка входа.';
