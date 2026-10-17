@@ -81,7 +81,7 @@
               <p id="signError" class="form-error hidden" role="alert"></p>
             </form>
             <div id="signJobPanel" class="sign-job hidden" aria-live="polite">
-              <div class="sign-job-heading"><strong id="signStage">Подготовка</strong><span id="signStatus" class="sign-status">В очереди</span></div>
+              <div class="sign-job-heading"><strong id="signStage">Подготовка</strong><span id="signStatus" class="sign-status">В очереди</span><button id="copyErrorBtn" class="text-button copy-error-btn hidden" type="button">Скопировать ошибку</button></div>
               <pre id="signLogs" class="sign-logs">Ожидание вывода SideSign…</pre>
               <form id="challengeForm" class="challenge-form hidden"><label for="challengeInput">Ответ на запрос Apple (например, номер способа подтверждения или шестизначный код)</label><div class="challenge-row"><input id="challengeInput" autocomplete="one-time-code" inputmode="text" maxlength="80" placeholder="Ответ из запроса" required><button class="button button-primary" type="submit">Отправить</button></div></form>
               <div id="signDone" class="sign-done hidden"><p>Подписанный IPA готов. Установка всё ещё зависит от того, примет ли iOS созданную подпись и профиль.</p><a id="signedInstallBtn" class="button button-install full" href="#">Установить на iPhone</a><a id="signedDownloadBtn" class="text-link" href="#">Скачать подписанный IPA</a></div>

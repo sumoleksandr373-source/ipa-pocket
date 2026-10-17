@@ -181,19 +181,22 @@ uploadForm.addEventListener('submit', async event => {
     inspectBtn.classList.remove('loading');
   }
 });
-$('copyInstallBtn').addEventListener('click', async () => {
-  if (!currentInstallUrl) return;
+async function copyTextToClipboard(text, successMessage, failureMessage) {
+  if (!text) return;
   try {
-    await navigator.clipboard.writeText(currentInstallUrl);
-    showToast('Ссылка установки скопирована. Открой её в Safari на iPhone.');
+    await navigator.clipboard.writeText(text);
+    showToast(successMessage);
   } catch (_) {
     const area = document.createElement('textarea');
-    area.value = currentInstallUrl;
+    area.value = text;
     area.style.position = 'fixed'; area.style.opacity = '0';
     document.body.appendChild(area); area.select();
     const copied = document.execCommand('copy'); area.remove();
-    showToast(copied ? 'Ссылка установки скопирована.' : 'Не удалось скопировать. Открой ссылку непосредственно в Safari.');
+    showToast(copied ? successMessage : failureMessage);
   }
+}
+$('copyInstallBtn').addEventListener('click', () => {
+  copyTextToClipboard(currentInstallUrl, 'Ссылка установки скопирована. Открой её в Safari на iPhone.', 'Не удалось скопировать. Открой ссылку непосредственно в Safari.');
 });
 $('newUploadBtn').addEventListener('click', () => {
   resultPanel.classList.add('hidden');
@@ -201,6 +204,7 @@ $('newUploadBtn').addEventListener('click', () => {
   currentPackageToken = '';
   signFinished = false;
   showError(signError, '');
+  copyErrorBtn.classList.add('hidden');
   ipaFile.value = '';
   displayFile(null);
   $('uploadForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -211,7 +215,18 @@ const signBtn = $('signBtn');
 const signPanel = $('signPanel');
 const signJobPanel = $('signJobPanel');
 const signError = $('signError');
+const copyErrorBtn = $('copyErrorBtn');
 const challengeForm = $('challengeForm');
+copyErrorBtn.addEventListener('click', () => {
+  const logsText = $('signLogs').textContent || '';
+  const text = [signError.textContent || '', logsText].filter(Boolean).join('\n\n').trim();
+  copyTextToClipboard(text, 'Ошибка скопирована в буфер обмена.', 'Не удалось скопировать. Выдели текст ошибки вручную.');
+});
+function updateCopyErrorVisibility() {
+  const logsText = $('signLogs').textContent || '';
+  const hasLogs = Boolean(logsText) && logsText !== 'Ожидание вывода SideSign…';
+  copyErrorBtn.classList.toggle('hidden', !(hasLogs || signError.textContent));
+}
 let activeSignJob = '';
 let signPollTimer = null;
 let currentPackageToken = '';
@@ -253,6 +268,7 @@ async function pollSignJob() {
     $('signStatus').textContent = signingStatusLabel(job.status);
     $('signLogs').textContent = job.logs || 'Ожидание вывода SideSign…';
     $('signLogs').scrollTop = $('signLogs').scrollHeight;
+    updateCopyErrorVisibility();
     challengeForm.classList.toggle('hidden', job.status !== 'awaiting_input');
     if (job.status === 'awaiting_input') $('challengeInput').focus({ preventScroll: true });
     if (job.status === 'completed') {
@@ -291,6 +307,7 @@ signForm.addEventListener('submit', async event => {
   challengeForm.classList.add('hidden');
   signJobPanel.classList.remove('hidden');
   $('signLogs').textContent = 'Запускаем SideSign…';
+  copyErrorBtn.classList.add('hidden');
   try {
     const data = await api('/api/sign/start', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

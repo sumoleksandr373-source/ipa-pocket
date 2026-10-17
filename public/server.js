@@ -23,6 +23,40 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const SIGNING_CACHE_DIR = path.join(DATA_DIR, 'signing-cache');
 const SIDESIGN_BIN = process.env.SIDESIGN_BIN || '/usr/local/bin/sidesign';
+// SideSign's --source expects a *catalog* JSON ({"servers":[{"name","address"}, ...]}), the same shape as
+// https://servers.sidestore.io/servers.json - it does NOT accept a single anisette server address directly
+// (pointing --source straight at https://ani.sidestore.io fails with "No active servers found in catalog").
+// The real servers.json also mixes in personal/community-hosted entries, some of which present self-signed
+// or otherwise untrusted certs - TLS verification correctly refuses those (never bypassed here) and made
+// --failover land on a broken entry. Fix: serve our own small catalog, same shape, containing only
+// SideStore's own officially-run servers, over loopback (no TLS needed, nothing secret in it - it's the
+// same public names/addresses as the real catalog, just filtered).
+const ANISETTE_CATALOG = {
+  servers: [
+    { name: 'SideStore', address: 'https://ani.sidestore.io' },
+    { name: 'SideStore (.app)', address: 'https://ani.sidestore.app' },
+    { name: 'SideStore (.zip)', address: 'https://ani.sidestore.zip' }
+  ],
+  cache: 'http://127.0.0.1:' + PORT + '/internal/anisette-catalog.json.hash'
+};
+const ANISETTE_CATALOG_JSON = JSON.stringify(ANISETTE_CATALOG);
+const ANISETTE_CATALOG_HASH = crypto.createHash('sha256').update(ANISETTE_CATALOG_JSON).digest('hex');
+const DEFAULT_ANISETTE_SOURCE = `http://127.0.0.1:${PORT}/internal/anisette-catalog.json`;
+const RAW_ANISETTE_SOURCE = (process.env.SIDESIGN_ANISETTE_SOURCE || '').trim();
+// Guard against a stale/bad SIDESIGN_ANISETTE_SOURCE (e.g. a leftover comma-separated list from an older
+// build): --source needs one well-formed absolute URL, and SideSign surfaces a malformed one as an opaque
+// "NSURLErrorDomain error -1000" rather than a clear message. Fall back to the local catalog instead of
+// passing junk through, and say so on startup so it's obvious in the Render logs.
+let SIDESIGN_ANISETTE_SOURCE = DEFAULT_ANISETTE_SOURCE;
+if (RAW_ANISETTE_SOURCE) {
+  try {
+    const parsed = new URL(RAW_ANISETTE_SOURCE);
+    if (!/^https?:$/.test(parsed.protocol)) throw new Error('not http(s)');
+    SIDESIGN_ANISETTE_SOURCE = RAW_ANISETTE_SOURCE;
+  } catch (_) {
+    console.error(`[IPA Pocket] SIDESIGN_ANISETTE_SOURCE="${RAW_ANISETTE_SOURCE}" не является одним корректным URL (ожидается ссылка на каталог вида servers.json) - используем встроенный каталог вместо него. Проверь/очисти эту переменную в Render.`);
+  }
+}
 const signJobs = new Map();
 let signingBusy = false;
 const COOKIE_NAME = 'ipa_pocket_session';
@@ -69,6 +103,11 @@ function runSideSign(job, args, options = {}) {
       cwd: job.workDir,
       env: {
         ...process.env,
+        // Explicitly use the refreshed OS CA bundle for SideSign/Anisette HTTPS.
+        // Keep TLS certificate verification enabled; never use an insecure bypass.
+        SSL_CERT_FILE: '/etc/ssl/certs/ca-certificates.crt',
+        SSL_CERT_DIR: '/etc/ssl/certs',
+        CURL_CA_BUNDLE: '/etc/ssl/certs/ca-certificates.crt',
         HOME: job.signingHome,
         XDG_CONFIG_HOME: path.join(job.signingHome, '.config'),
         XDG_DATA_HOME: path.join(job.signingHome, '.local', 'share'),
@@ -178,7 +217,11 @@ async function performSigning(job, item, credentials) {
   }
 
   // Password is passed only to the short-lived child process and is never added to job metadata/logs.
-  const login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
+  // --source must point to a catalog JSON ({"servers":[{"name","address"}]}); SIDESIGN_ANISETTE_SOURCE
+  // defaults to our own filtered local catalog (see ANISETTE_CATALOG above) so --failover only ever
+  // tries SideStore's own officially-run, validly-certified servers.
+  appendJobLog(job, `\n[IPA Pocket] Anisette-каталог: ${SIDESIGN_ANISETTE_SOURCE}\n`);
+  const login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password, '--failover', '--source', SIDESIGN_ANISETTE_SOURCE], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
   credentials.password = '';
   if (login.code !== 0) {
     const detail = login.output.trim().slice(-1800) || 'Неизвестная ошибка входа.';
@@ -265,10 +308,16 @@ async function startSigningJob(item, requestData) {
   const id = crypto.randomUUID();
   const appleId = safeString(requestData.appleId, 254);
   const password = String(requestData.password || '');
-  const udid = safeString(requestData.udid, 64).toUpperCase();
+  let udid = safeString(requestData.udid, 64).trim().toUpperCase().replace(/[–—−]/g, '-');
+  // Newer iPhones use an 8-hex + hyphen + 16-hex UDID; older devices use 40 hex characters.
+  // Some UDID pages omit the hyphen, so accept 24 hex characters and normalize them.
+  const compactUdid = udid.replace(/-/g, '');
+  if (/^[A-F0-9]{24}$/.test(compactUdid) && !udid.includes('-')) {
+    udid = `${compactUdid.slice(0, 8)}-${compactUdid.slice(8)}`;
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(appleId)) throw new Error('Введи корректный Apple ID (электронную почту).');
   if (!password || password.length > 512) throw new Error('Введи пароль Apple ID.');
-  if (!/^(?:[A-F0-9]{40}|[A-F0-9]{8}-[A-F0-9]{16})$/.test(udid)) throw new Error('Формат UDID не распознан. Поддерживаются 40 шестнадцатеричных символов или формат нового UDID XXXXXXXX-XXXXXXXXXXXXXXXX. Скопируй UDID из iTunes, а не IMEI/серийный номер.');
+  if (!/^(?:[A-F0-9]{40}|[A-F0-9]{8}-[A-F0-9]{16})$/.test(udid)) throw new Error('Неподдерживаемый формат UDID. Принимаются старый формат из 40 шестнадцатеричных символов и новый формат XXXXXXXX-XXXXXXXXXXXXXXXX (8 символов, дефис, 16 символов). Вставь полный UDID из надёжного источника — не IMEI и не серийный номер.');
   if (signingBusy) throw new Error('Сервер уже выполняет подпись. Дождись окончания текущей операции.');
   const job = { id, token: item.token, status: 'queued', stage: 'Подготовка', logs: '', prompt: '', child: null, createdAt: Date.now(), result: null, error: '', redactions: [appleId, password], signingHome: '', workDir: '' };
   signJobs.set(id, job);
@@ -431,6 +480,10 @@ app.use(helmet({
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html', etag: true, maxAge: '1h' }));
 app.get('/health', (_req, res) => res.status(200).json({ ok: true, service: 'ipa-pocket-ota' }));
+// Local anisette catalog for SideSign's --source/--failover (see ANISETTE_CATALOG above). Only ever
+// fetched over loopback by the sidesign child process, never exposed as a link in the UI.
+app.get('/internal/anisette-catalog.json', (_req, res) => res.type('application/json').send(ANISETTE_CATALOG_JSON));
+app.get('/internal/anisette-catalog.json.hash', (_req, res) => res.type('text/plain').send(ANISETTE_CATALOG_HASH));
 
 app.post('/api/auth', (req, res) => {
   if (!safeEqual(req.body && req.body.accessKey, ACCESS_KEY)) return res.status(401).json({ ok: false, error: 'Неверный ключ доступа.' });
