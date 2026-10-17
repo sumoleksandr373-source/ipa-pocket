@@ -485,6 +485,19 @@ app.get('/api/status', requireSession, (req, res) => {
   const signingReady = fs.existsSync(SIDESIGN_BIN);
   res.json({ ok: true, httpsReady: Boolean(getPublicBaseUrl(req)), maxFileSize: MAX_FILE_SIZE, linkTtlHours: LINK_TTL_HOURS, signingReady, mode: signingReady ? 'experimental-apple-id-signing' : 'ota-existing-signature' });
 });
+// TEMP DIAGNOSTIC — remove after the TLS/anisette issue is resolved. Behind requireSession,
+// so only someone with ACCESS_KEY can hit it. Runs curl and `sidesign --help` to compare
+// the OS-level TLS trust (curl) against the Swift binary's own TLS trust (sidesign).
+app.get('/internal/tls-diag', requireSession, (_req, res) => {
+  const curlResult = spawnSync('curl', ['-v', 'https://ani.sidestore.io'], { encoding: 'utf8', timeout: 15000 });
+  const helpResult = spawnSync(SIDESIGN_BIN, ['--help'], { encoding: 'utf8', timeout: 15000, env: { ...process.env, HOME: '/tmp' } });
+  res.type('text/plain').send(
+    '=== curl -v https://ani.sidestore.io (exit ' + curlResult.status + ') ===\n' +
+    (curlResult.stdout || '') + '\n' + (curlResult.stderr || '') +
+    '\n\n=== ' + SIDESIGN_BIN + ' --help (exit ' + helpResult.status + ') ===\n' +
+    (helpResult.stdout || '') + '\n' + (helpResult.stderr || '')
+  );
+});
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
