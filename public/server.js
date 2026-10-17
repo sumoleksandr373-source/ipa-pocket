@@ -50,8 +50,12 @@ const RAW_ANISETTE_SOURCE = (process.env.SIDESIGN_ANISETTE_SOURCE || '').trim();
 let SIDESIGN_ANISETTE_SOURCE = DEFAULT_ANISETTE_SOURCE;
 if (RAW_ANISETTE_SOURCE) {
   try {
+    // WHATWG's URL() is lenient enough to "parse" a comma-joined list (the comma just ends up inside the
+    // hostname) instead of throwing, so reject commas/whitespace/control chars explicitly before trusting it.
+    if (/[,\s\u0000-\u001f]/.test(RAW_ANISETTE_SOURCE)) throw new Error('contains a comma or whitespace - looks like a list of servers, not a single catalog URL');
     const parsed = new URL(RAW_ANISETTE_SOURCE);
     if (!/^https?:$/.test(parsed.protocol)) throw new Error('not http(s)');
+    if (!parsed.hostname || !parsed.hostname.includes('.')) throw new Error('no valid hostname');
     SIDESIGN_ANISETTE_SOURCE = RAW_ANISETTE_SOURCE;
   } catch (_) {
     console.error(`[IPA Pocket] SIDESIGN_ANISETTE_SOURCE="${RAW_ANISETTE_SOURCE}" не является одним корректным URL (ожидается ссылка на каталог вида servers.json) - используем встроенный каталог вместо него. Проверь/очисти эту переменную в Render.`);
