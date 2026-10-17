@@ -23,31 +23,25 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || './data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const SIGNING_CACHE_DIR = path.join(DATA_DIR, 'signing-cache');
 const SIDESIGN_BIN = process.env.SIDESIGN_BIN || '/usr/local/bin/sidesign';
-// Checked SideSign's actual source (github.com/SideStore/SideSign, CLI/CommandHandler.swift +
-// CLI/PortalCommandsParser.swift). `--source`/`--failover` are ONLY for catalog-file selection: they
-// JSON-decode the URL as {"servers":[{"name","address"}]} and build a server list from it - that's why
-// pointing --source at a single server address failed ("No active servers found in catalog"), and why a
-// comma-joined list of addresses failed too (not valid JSON / not a valid single URL either).
-// The CLI has a separate, simpler flag for exactly our case - one direct anisette server, no catalog:
-//   --server <url>  (aka --anisette-url / --anisette / -srv)
-// which goes straight to `mode = .remote(server: url)`, skipping the catalog fetch/decode entirely.
-// So: no local catalog server needed - just try our own short list of official, validly-certified
-// anisette servers in turn with --server, same connectivity-only failover logic as before.
-const DEFAULT_ANISETTE_SERVERS = ['https://ani.sidestore.io', 'https://ani.sidestore.app', 'https://ani.sidestore.zip'];
-const SIDESIGN_ANISETTE_SERVERS = [];
-for (const raw of (process.env.SIDESIGN_ANISETTE_SOURCE || '').split(',').map(v => v.trim()).filter(Boolean)) {
-  try {
-    const parsed = new URL(raw);
-    if (!/^https?:$/.test(parsed.protocol) || !parsed.hostname.includes('.')) throw new Error('not a valid http(s) URL');
-    SIDESIGN_ANISETTE_SERVERS.push(raw);
-  } catch (_) {
-    console.error(`[IPA Pocket] Пропускаю некорректный адрес в SIDESIGN_ANISETTE_SOURCE: "${raw}" (нужен один валидный http(s) URL anisette-сервера на запись, через запятую для нескольких).`);
-  }
-}
-if (SIDESIGN_ANISETTE_SERVERS.length === 0) SIDESIGN_ANISETTE_SERVERS.push(...DEFAULT_ANISETTE_SERVERS);
-function isConnectivityIssue(output) {
-  return /(self.?signed certificate|certificate (problem|verif|chain)|ssl|tls|handshake|nsurlerror|unsupported url|bad url|econnrefused|econnreset|enotfound|eai_again|etimedout|timed? ?out|connection reset|could not connect|network is unreachable|502 |503 |504 |bad gateway|gateway timeout|service unavailable|no active servers)/i.test(output);
-}
+// SideSign's --source expects a *catalog* JSON ({"servers":[{"name","address"}, ...]}), the same shape as
+// https://servers.sidestore.io/servers.json - it does NOT accept a single anisette server address directly
+// (pointing --source straight at https://ani.sidestore.io fails with "No active servers found in catalog").
+// The real servers.json also mixes in personal/community-hosted entries, some of which present self-signed
+// or otherwise untrusted certs - TLS verification correctly refuses those (never bypassed here) and made
+// --failover land on a broken entry. Fix: serve our own small catalog, same shape, containing only
+// SideStore's own officially-run servers, over loopback (no TLS needed, nothing secret in it - it's the
+// same public names/addresses as the real catalog, just filtered).
+const ANISETTE_CATALOG = {
+  servers: [
+    { name: 'SideStore', address: 'https://ani.sidestore.io' },
+    { name: 'SideStore (.app)', address: 'https://ani.sidestore.app' },
+    { name: 'SideStore (.zip)', address: 'https://ani.sidestore.zip' }
+  ],
+  cache: 'http://127.0.0.1:' + PORT + '/internal/anisette-catalog.json.hash'
+};
+const ANISETTE_CATALOG_JSON = JSON.stringify(ANISETTE_CATALOG);
+const ANISETTE_CATALOG_HASH = crypto.createHash('sha256').update(ANISETTE_CATALOG_JSON).digest('hex');
+const SIDESIGN_ANISETTE_SOURCE = (process.env.SIDESIGN_ANISETTE_SOURCE || `http://127.0.0.1:${PORT}/internal/anisette-catalog.json`).trim();
 const signJobs = new Map();
 let signingBusy = false;
 const COOKIE_NAME = 'ipa_pocket_session';
@@ -208,23 +202,11 @@ async function performSigning(job, item, credentials) {
   }
 
   // Password is passed only to the short-lived child process and is never added to job metadata/logs.
-  // Direct per-server connect (--server), not the catalog-based --source/--failover (see comment on
-  // SIDESIGN_ANISETTE_SERVERS above for why). We do our own failover across SIDESIGN_ANISETTE_SERVERS,
-  // only moving to the next one on a connectivity/certificate failure - never on a wrong password or a
-  // pending 2FA prompt, since switching servers wouldn't help and just burns Apple ID login attempts.
-  let login = { code: -1, output: '' };
-  for (let i = 0; i < SIDESIGN_ANISETTE_SERVERS.length; i++) {
-    const server = SIDESIGN_ANISETTE_SERVERS[i];
-    appendJobLog(job, `\n[IPA Pocket] Anisette-сервер: ${server}\n`);
-    login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password, '--server', server], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
-    if (login.code === 0) {
-      appendJobLog(job, `\n[IPA Pocket] Вход через ${server} прошёл успешно.\n`);
-      break;
-    }
-    const isLast = i === SIDESIGN_ANISETTE_SERVERS.length - 1;
-    if (!isConnectivityIssue(login.output) || isLast) break;
-    appendJobLog(job, `\n[IPA Pocket] ${server} недоступен, пробуем следующий сервер.\n`);
-  }
+  // --source must point to a catalog JSON ({"servers":[{"name","address"}]}); SIDESIGN_ANISETTE_SOURCE
+  // defaults to our own filtered local catalog (see ANISETTE_CATALOG above) so --failover only ever
+  // tries SideStore's own officially-run, validly-certified servers.
+  appendJobLog(job, `\n[IPA Pocket] Anisette-каталог: ${SIDESIGN_ANISETTE_SOURCE}\n`);
+  const login = await runSideSign(job, ['dev', 'login', '--apple-id', credentials.appleId, '--password', credentials.password, '--failover', '--source', SIDESIGN_ANISETTE_SOURCE], { stage: 'Входим в Apple Developer и ждём 2FA при необходимости' });
   credentials.password = '';
   if (login.code !== 0) {
     const detail = login.output.trim().slice(-1800) || 'Неизвестная ошибка входа.';
@@ -483,6 +465,10 @@ app.use(helmet({
 app.use(express.json({ limit: '16kb' }));
 app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html', etag: true, maxAge: '1h' }));
 app.get('/health', (_req, res) => res.status(200).json({ ok: true, service: 'ipa-pocket-ota' }));
+// Local anisette catalog for SideSign's --source/--failover (see ANISETTE_CATALOG above). Only ever
+// fetched over loopback by the sidesign child process, never exposed as a link in the UI.
+app.get('/internal/anisette-catalog.json', (_req, res) => res.type('application/json').send(ANISETTE_CATALOG_JSON));
+app.get('/internal/anisette-catalog.json.hash', (_req, res) => res.type('text/plain').send(ANISETTE_CATALOG_HASH));
 
 app.post('/api/auth', (req, res) => {
   if (!safeEqual(req.body && req.body.accessKey, ACCESS_KEY)) return res.status(401).json({ ok: false, error: 'Неверный ключ доступа.' });
@@ -498,6 +484,19 @@ app.post('/api/logout', (_req, res) => {
 app.get('/api/status', requireSession, (req, res) => {
   const signingReady = fs.existsSync(SIDESIGN_BIN);
   res.json({ ok: true, httpsReady: Boolean(getPublicBaseUrl(req)), maxFileSize: MAX_FILE_SIZE, linkTtlHours: LINK_TTL_HOURS, signingReady, mode: signingReady ? 'experimental-apple-id-signing' : 'ota-existing-signature' });
+});
+// TEMP DIAGNOSTIC — remove after the TLS/anisette issue is resolved. Behind requireSession,
+// so only someone with ACCESS_KEY can hit it. Runs curl and `sidesign --help` to compare
+// the OS-level TLS trust (curl) against the Swift binary's own TLS trust (sidesign).
+app.get('/internal/tls-diag', requireSession, (_req, res) => {
+  const curlResult = spawnSync('curl', ['-v', 'https://ani.sidestore.io'], { encoding: 'utf8', timeout: 15000 });
+  const helpResult = spawnSync(SIDESIGN_BIN, ['--help'], { encoding: 'utf8', timeout: 15000, env: { ...process.env, HOME: '/tmp' } });
+  res.type('text/plain').send(
+    '=== curl -v https://ani.sidestore.io (exit ' + curlResult.status + ') ===\n' +
+    (curlResult.stdout || '') + '\n' + (curlResult.stderr || '') +
+    '\n\n=== ' + SIDESIGN_BIN + ' --help (exit ' + helpResult.status + ') ===\n' +
+    (helpResult.stdout || '') + '\n' + (helpResult.stderr || '')
+  );
 });
 
 const storage = multer.diskStorage({
