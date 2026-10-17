@@ -490,12 +490,18 @@ app.get('/api/status', requireSession, (req, res) => {
 // the OS-level TLS trust (curl) against the Swift binary's own TLS trust (sidesign).
 app.get('/internal/tls-diag', requireSession, (_req, res) => {
   const curlResult = spawnSync('curl', ['-v', 'https://ani.sidestore.io'], { encoding: 'utf8', timeout: 15000 });
-  const helpResult = spawnSync(SIDESIGN_BIN, ['--help'], { encoding: 'utf8', timeout: 15000, env: { ...process.env, HOME: '/tmp' } });
+  const lddResult = spawnSync('ldd', [SIDESIGN_BIN], { encoding: 'utf8', timeout: 10000 });
+  const stringsResult = spawnSync('sh', ['-c', `strings "${SIDESIGN_BIN}" | grep -iE "ca-certificates|cacert|ssl_cert|/etc/ssl|CURL_CA" | sort -u | head -40`], { encoding: 'utf8', timeout: 15000 });
+  const anisetteResult = spawnSync(SIDESIGN_BIN, ['anisette', 'servers'], { encoding: 'utf8', timeout: 20000, env: { ...process.env, HOME: '/tmp', SSL_CERT_FILE: '/etc/ssl/certs/ca-certificates.crt', SSL_CERT_DIR: '/etc/ssl/certs' } });
   res.type('text/plain').send(
     '=== curl -v https://ani.sidestore.io (exit ' + curlResult.status + ') ===\n' +
     (curlResult.stdout || '') + '\n' + (curlResult.stderr || '') +
-    '\n\n=== ' + SIDESIGN_BIN + ' --help (exit ' + helpResult.status + ') ===\n' +
-    (helpResult.stdout || '') + '\n' + (helpResult.stderr || '')
+    '\n\n=== ldd ' + SIDESIGN_BIN + ' (exit ' + lddResult.status + ') ===\n' +
+    (lddResult.stdout || '') + '\n' + (lddResult.stderr || '') +
+    '\n\n=== strings | grep ca-certificates/cacert/ssl_cert (exit ' + stringsResult.status + ') ===\n' +
+    (stringsResult.stdout || '') + '\n' + (stringsResult.stderr || '') +
+    '\n\n=== sidesign anisette servers (exit ' + anisetteResult.status + ') ===\n' +
+    (anisetteResult.stdout || '') + '\n' + (anisetteResult.stderr || '')
   );
 });
 
